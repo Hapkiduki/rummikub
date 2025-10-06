@@ -30,3 +30,19 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# macOS
+.DS_Store
+
+# Logs and temp files
+*.log
+tmp/
+
+# Node/npm (if any front-end files are added)
+node_modules/
+
+# Dist files
+dist/
+
+# JetBrains IDE
+*.iml
