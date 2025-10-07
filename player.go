@@ -114,6 +114,7 @@ func (e EstrategiaHumano) JugarTurno(jugador *Jugador, mazo []Pieza, mesa [][]Pi
 				jugador.HaHechoPrimeraJugada = true
 			}
 			mesa = append(mesa, fichasParaJugar)
+			ordenarJugada(mesa[len(mesa)-1])
 			jugador.Mano = quitarFichasDeMano(jugador.Mano, indices)
 			fmt.Println("Has bajado una jugada a la mesa. Tu turno ha terminado.")
 			return mazo, mesa
@@ -133,6 +134,7 @@ func (e EstrategiaHumano) JugarTurno(jugador *Jugador, mazo []Pieza, mesa [][]Pi
 			if sePuedeAnadirFicha(jugada, ficha) {
 				fmt.Println("¡Movimiento válido!")
 				mesa[idxJugada] = append(mesa[idxJugada], ficha)
+				ordenarJugada(mesa[idxJugada])
 				jugador.Mano = quitarFichasDeMano(jugador.Mano, map[int]bool{idxFicha: true})
 				fmt.Println("Has añadido una ficha a la mesa. Tu turno ha terminado.")
 				return mazo, mesa
@@ -197,36 +199,95 @@ func quitarFichasDeMano(mano []Pieza, indicesARemover map[int]bool) []Pieza {
 func buscarJugadaEnMano(mano []Pieza) <-chan ResultadoBusqueda {
 	ch := make(chan ResultadoBusqueda, 1)
 	go func() {
+		defer close(ch)
 		if len(mano) < 3 {
 			ch <- ResultadoBusqueda{}
 			return
 		}
+		// Ordenar la mano por color y número
+		sortedMano := make([]Pieza, len(mano))
+		copy(sortedMano, mano)
+		sort.Slice(sortedMano, func(i, j int) bool {
+			if sortedMano[i].Color != sortedMano[j].Color {
+				return sortedMano[i].Color < sortedMano[j].Color
+			}
+			return sortedMano[i].Numero < sortedMano[j].Numero
+		})
+
 		var bestJugada []Pieza
 		var bestIndices map[int]bool
-		var find func(start int, current []Pieza, indices map[int]bool)
-		find = func(start int, current []Pieza, indices map[int]bool) {
-			if len(current) >= 3 && esJugadaValida(current) {
-				if len(current) > len(bestJugada) {
-					bestJugada = make([]Pieza, len(current))
-					copy(bestJugada, current)
-					bestIndices = make(map[int]bool)
-					for k, v := range indices {
-						bestIndices[k] = v
+
+		// Buscar runs (escaleras) más largas
+		for i := 0; i < len(sortedMano); {
+			color := sortedMano[i].Color
+			start := i
+			for i < len(sortedMano) && sortedMano[i].Color == color {
+				i++
+			}
+			// En este grupo de color, encontrar la run más larga
+			group := sortedMano[start:i]
+			run := findLongestRun(group)
+			if len(run) >= 3 && len(run) > len(bestJugada) {
+				bestJugada = run
+				bestIndices = make(map[int]bool)
+				for _, p := range run {
+					for idx, mp := range mano {
+						if mp == p {
+							bestIndices[idx] = true
+							break
+						}
 					}
 				}
 			}
-			for i := start; i < len(mano); i++ {
-				current = append(current, mano[i])
-				indices[i] = true
-				find(i+1, current, indices)
-				delete(indices, i)
-				current = current[:len(current)-1]
+		}
+
+		// Buscar groups (tríos/cuartetos) más grandes
+		numGroups := make(map[int][]Pieza)
+		for _, p := range mano {
+			numGroups[p.Numero] = append(numGroups[p.Numero], p)
+		}
+		for _, group := range numGroups {
+			if len(group) >= 3 && len(group) > len(bestJugada) {
+				if esJugadaValida(group) {
+					bestJugada = group
+					bestIndices = make(map[int]bool)
+					for _, p := range group {
+						for idx, mp := range mano {
+							if mp == p {
+								bestIndices[idx] = true
+								break
+							}
+						}
+					}
+				}
 			}
 		}
-		find(0, []Pieza{}, map[int]bool{})
+
 		ch <- ResultadoBusqueda{Jugada: bestJugada, Indices: bestIndices}
 	}()
 	return ch
+}
+
+func findLongestRun(group []Pieza) []Pieza {
+	if len(group) < 3 {
+		return nil
+	}
+	var longest []Pieza
+	current := []Pieza{group[0]}
+	for i := 1; i < len(group); i++ {
+		if group[i].Numero == group[i-1].Numero+1 {
+			current = append(current, group[i])
+		} else {
+			if len(current) >= 3 && len(current) > len(longest) {
+				longest = current
+			}
+			current = []Pieza{group[i]}
+		}
+	}
+	if len(current) >= 3 && len(current) > len(longest) {
+		longest = current
+	}
+	return longest
 }
 
 // --- ESTRATEGIA: BOT NOVATO
@@ -252,6 +313,7 @@ func (e EstrategiaNovato) JugarTurno(jugador *Jugador, mazo []Pieza, mesa [][]Pi
 	if jugadaEncontrada != nil {
 		fmt.Printf("%s juega: %v\n", jugador.Nombre, jugadaEncontrada)
 		mesa = append(mesa, jugadaEncontrada)
+		ordenarJugada(mesa[len(mesa)-1])
 		jugador.Mano = quitarFichasDeMano(jugador.Mano, indices)
 	} else {
 		if len(mazo) > 0 {
@@ -290,6 +352,7 @@ func (e EstrategiaIntermedio) JugarTurno(jugador *Jugador, mazo []Pieza, mesa []
 	if jugadaEncontrada != nil {
 		fmt.Printf("%s juega: %v\n", jugador.Nombre, jugadaEncontrada)
 		mesa = append(mesa, jugadaEncontrada)
+		ordenarJugada(mesa[len(mesa)-1])
 		jugador.Mano = quitarFichasDeMano(jugador.Mano, indices)
 		return mazo, mesa
 	}
@@ -300,6 +363,7 @@ func (e EstrategiaIntermedio) JugarTurno(jugador *Jugador, mazo []Pieza, mesa []
 				if sePuedeAnadirFicha(jugadaEnMesa, ficha) {
 					fmt.Printf("%s añade un(a) %s a la jugada %d.\n", jugador.Nombre, ficha, j)
 					mesa[j] = append(mesa[j], ficha)
+					ordenarJugada(mesa[j])
 					jugador.Mano = quitarFichasDeMano(jugador.Mano, map[int]bool{i: true})
 					return mazo, mesa
 				}

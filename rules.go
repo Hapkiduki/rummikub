@@ -161,3 +161,13 @@ func calcularPuntosMano(mano []Pieza) int {
 	}
 	return total
 }
+
+// ordenarJugada ordena las fichas en una jugada por número ascendente, y luego por color.
+func ordenarJugada(jugada []Pieza) {
+	sort.Slice(jugada, func(i, j int) bool {
+		if jugada[i].Numero != jugada[j].Numero {
+			return jugada[i].Numero < jugada[j].Numero
+		}
+		return jugada[i].Color < jugada[j].Color
+	})
+}
