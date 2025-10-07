@@ -28,9 +28,24 @@ func main() {
 	for !juegoTerminado {
 		jugadorActual := jugadores[turno%numJugadores]
 		mazo, mesa = jugadorActual.Estrategia.JugarTurno(jugadorActual, mazo, mesa)
-		// Comprobar si el jugador actual ha ganado.
+		// Comprobar si se acabaron las fichas del mazo.
 		if len(jugadorActual.Mano) == 0 {
 			fmt.Printf("\n¡Felicidades, %s! ¡Has ganado la partida!\n", jugadorActual.Nombre)
+			juegoTerminado = true
+		} else if len(mazo) == 0 {
+			fmt.Println("\n¡Se acabaron todas las fichas del mazo!")
+			// Determinar el ganador: el que tenga menos puntos en su mano.
+			minPuntos := 9999
+			ganador := ""
+			for _, j := range jugadores {
+				puntos := calcularPuntosMano(j.Mano)
+				fmt.Printf("%s tiene %d puntos en su mano.\n", j.Nombre, puntos)
+				if puntos < minPuntos {
+					minPuntos = puntos
+					ganador = j.Nombre
+				}
+			}
+			fmt.Printf("\n¡Felicidades, %s! ¡Has ganado la partida con %d puntos!\n", ganador, minPuntos)
 			juegoTerminado = true
 		}
 		turno++

@@ -83,3 +83,8 @@ func crearJugadores(numJugadores int) []*Jugador {
 	}
 	return jugadores
 }
+
+type ResultadoBusqueda struct {
+	Jugada  []Pieza
+	Indices map[int]bool
+}

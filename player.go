@@ -194,22 +194,39 @@ func quitarFichasDeMano(mano []Pieza, indicesARemover map[int]bool) []Pieza {
 
 // --- LÓGICA DEL BOT NOVATO ---
 
-func buscarJugadaEnMano(mano []Pieza) ([]Pieza, map[int]bool) {
-	if len(mano) < 3 {
-		return nil, nil
-	}
-	for i := 0; i < len(mano); i++ {
-		for j := i + 1; j < len(mano); j++ {
-			for k := j + 1; k < len(mano); k++ {
-				jugada := []Pieza{mano[i], mano[j], mano[k]}
-				if esJugadaValida(jugada) {
-					indices := map[int]bool{i: true, j: true, k: true}
-					return jugada, indices
+func buscarJugadaEnMano(mano []Pieza) <-chan ResultadoBusqueda {
+	ch := make(chan ResultadoBusqueda, 1)
+	go func() {
+		if len(mano) < 3 {
+			ch <- ResultadoBusqueda{}
+			return
+		}
+		var bestJugada []Pieza
+		var bestIndices map[int]bool
+		var find func(start int, current []Pieza, indices map[int]bool)
+		find = func(start int, current []Pieza, indices map[int]bool) {
+			if len(current) >= 3 && esJugadaValida(current) {
+				if len(current) > len(bestJugada) {
+					bestJugada = make([]Pieza, len(current))
+					copy(bestJugada, current)
+					bestIndices = make(map[int]bool)
+					for k, v := range indices {
+						bestIndices[k] = v
+					}
 				}
 			}
+			for i := start; i < len(mano); i++ {
+				current = append(current, mano[i])
+				indices[i] = true
+				find(i+1, current, indices)
+				delete(indices, i)
+				current = current[:len(current)-1]
+			}
 		}
-	}
-	return nil, nil
+		find(0, []Pieza{}, map[int]bool{})
+		ch <- ResultadoBusqueda{Jugada: bestJugada, Indices: bestIndices}
+	}()
+	return ch
 }
 
 // --- ESTRATEGIA: BOT NOVATO
@@ -221,7 +238,8 @@ func (e EstrategiaNovato) JugarTurno(jugador *Jugador, mazo []Pieza, mesa [][]Pi
 	time.Sleep(1 * time.Second)
 	fmt.Printf("%s está pensando...\n", jugador.Nombre)
 	time.Sleep(2 * time.Second)
-	jugadaEncontrada, indices := buscarJugadaEnMano(jugador.Mano)
+	result := <-buscarJugadaEnMano(jugador.Mano)
+	jugadaEncontrada, indices := result.Jugada, result.Indices
 	if jugadaEncontrada != nil && !jugador.HaHechoPrimeraJugada {
 		puntos := calcularValorJugada(jugadaEncontrada)
 		if puntos < 30 {
@@ -258,7 +276,8 @@ func (e EstrategiaIntermedio) JugarTurno(jugador *Jugador, mazo []Pieza, mesa []
 	fmt.Printf("%s está pensando...\n", jugador.Nombre)
 	time.Sleep(2 * time.Second)
 	// Intenta jugar como un Novato primero (bajar un grupo nuevo)
-	jugadaEncontrada, indices := buscarJugadaEnMano(jugador.Mano)
+	result := <-buscarJugadaEnMano(jugador.Mano)
+	jugadaEncontrada, indices := result.Jugada, result.Indices
 	if jugadaEncontrada != nil && !jugador.HaHechoPrimeraJugada {
 		puntos := calcularValorJugada(jugadaEncontrada)
 		if puntos < 30 {

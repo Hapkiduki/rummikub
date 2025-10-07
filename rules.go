@@ -147,3 +147,17 @@ func sePuedeAnadirFicha(jugada []Pieza, ficha Pieza) bool {
 	jugadaTemporal[len(jugada)] = ficha
 	return esJugadaValida(jugadaTemporal)
 }
+
+// calcularPuntosMano calcula los puntos totales de las fichas en la mano de un jugador.
+// Comodines valen 30 puntos, otras fichas valen su número.
+func calcularPuntosMano(mano []Pieza) int {
+	total := 0
+	for _, p := range mano {
+		if p.Numero == 0 {
+			total += 30
+		} else {
+			total += p.Numero
+		}
+	}
+	return total
+}
